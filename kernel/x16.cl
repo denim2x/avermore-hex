@@ -160,73 +160,14 @@ enum
   X16R_HASH_FUNC_COUNT
 };
 
+// blake64
 void blake64 (__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
 
   // blake
-  sph_u64 H0 = SPH_C64(0x6A09E667F3BCC908), H1 = SPH_C64(0xBB67AE8584CAA73B);
-  sph_u64 H2 = SPH_C64(0x3C6EF372FE94F82B), H3 = SPH_C64(0xA54FF53A5F1D36F1);
-  sph_u64 H4 = SPH_C64(0x510E527FADE682D1), H5 = SPH_C64(0x9B05688C2B3E6C1F);
-  sph_u64 H6 = SPH_C64(0x1F83D9ABFB41BD6B), H7 = SPH_C64(0x5BE0CD19137E2179);
-  sph_u64 S0 = 0, S1 = 0, S2 = 0, S3 = 0;
-  sph_u64 T0 = SPH_C64(0xFFFFFFFFFFFFFC00) + (64 << 3), T1 = 0xFFFFFFFFFFFFFFFF;
-
-  if ((T0 = SPH_T64(T0 + 1024)) < 1024)
-    T1 = SPH_T64(T1 + 1);
-
-  sph_u64 M0, M1, M2, M3, M4, M5, M6, M7;
-  sph_u64 M8, M9, MA, MB, MC, MD, ME, MF;
-  sph_u64 V0, V1, V2, V3, V4, V5, V6, V7;
-  sph_u64 V8, V9, VA, VB, VC, VD, VE, VF;
-
-  M0 = DEC64E(hash->h8[0]);
-  M1 = DEC64E(hash->h8[1]);
-  M2 = DEC64E(hash->h8[2]);
-  M3 = DEC64E(hash->h8[3]);
-  M4 = DEC64E(hash->h8[4]);
-  M5 = DEC64E(hash->h8[5]);
-  M6 = DEC64E(hash->h8[6]);
-  M7 = DEC64E(hash->h8[7]);
-  M8 = 0x8000000000000000;
-  M9 = 0;
-  MA = 0;
-  MB = 0;
-  MC = 0;
-  MD = 1;
-  ME = 0;
-  MF = 0x200;
-
-  COMPRESS64;
-
   ulong h8[8];
-
-  h8[0] = ENC64E(H0);
-  h8[1] = ENC64E(H1);
-  h8[2] = ENC64E(H2);
-  h8[3] = ENC64E(H3);
-  h8[4] = ENC64E(H4);
-  h8[5] = ENC64E(H5);
-  h8[6] = ENC64E(H6);
-  h8[7] = ENC64E(H7);
-
- if (update)
-#pragma unroll 8
-        for (int i = 0; i < 8; i++) hash->h8[i] = h8[i];
-
-  barrier(CLK_GLOBAL_MEM_FENCE);
-}
-
-
-// blake64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search1(__global hash_t* hashes)
-{
-  uint gid = get_global_id(0);
-  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
-
-  // blake
 
   sph_u64 V0 = BLAKE_IV512[0], V1 = BLAKE_IV512[1], V2 = BLAKE_IV512[2], V3 = BLAKE_IV512[3];
   sph_u64 V4 = BLAKE_IV512[4], V5 = BLAKE_IV512[5], V6 = BLAKE_IV512[6], V7 = BLAKE_IV512[7];
@@ -281,12 +222,16 @@ __kernel void search1(__global hash_t* hashes)
   hash->h8[6] = SWAP8(V6 ^ VE ^ BLAKE_IV512[6]);
   hash->h8[7] = SWAP8(V7 ^ VF ^ BLAKE_IV512[7]);
 
+	if (update)
+        #pragma unroll 8
+        for (int i = 0; i < 8; i++) hash->h8[i] = h8[i];
+
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // blake80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search2(__global unsigned char* block, __global hash_t* hashes)
+__kernel void search1(__global unsigned char* block, __global hash_t* hashes)
 {
     uint gid = get_global_id(0);
     __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -351,8 +296,7 @@ __kernel void search2(__global unsigned char* block, __global hash_t* hashes)
 }
 
 // bmw64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search3(__global hash_t* hashes)
+void bmw64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -369,15 +313,19 @@ __kernel void search3(__global hash_t* hashes)
     BMW_Compression(msg, h);
   }
 
+if (update)
+{
   #pragma unroll
   for (int i = 0; i < 8; i++) hash->h8[i] = msg[i + 8];
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
+
+
 // bmw80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search4(__global ulong* block, __global hash_t* hashes)
+__kernel void search2(__global ulong* block, __global hash_t* hashes)
 {
    uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -403,7 +351,7 @@ __kernel void search4(__global ulong* block, __global hash_t* hashes)
 
 // groestl64
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search5(__global hash_t* hashes)
+__kernel void search19(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -637,7 +585,7 @@ __kernel void search5(__global hash_t* hashes)
 
 // groestl80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search6(__global ulong* block, __global hash_t* hashes)
+__kernel void search3(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -870,8 +818,7 @@ __kernel void search6(__global ulong* block, __global hash_t* hashes)
 }
 
 // jh64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search7(__global hash_t* hashes)
+void jh64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -909,7 +856,8 @@ __kernel void search7(__global hash_t* hashes)
   }
   h4h ^= 0x80;
   h7l ^= 0x2000000000000;
-
+if (update)
+{
   hash->h8[0] = h4h;
   hash->h8[1] = h4l;
   hash->h8[2] = h5h;
@@ -918,13 +866,13 @@ __kernel void search7(__global hash_t* hashes)
   hash->h8[5] = h6l;
   hash->h8[6] = h7h;
   hash->h8[7] = h7l;
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // jh80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search8(__global ulong* block, __global hash_t* hashes)
+__kernel void search4(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1069,8 +1017,7 @@ uint2 ROTL64_2(const uint2 x, const uint y) {
     s0 ^= KECCAKF_1600_RNDC_ ## i;
 
 // keccak64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search9(__global hash_t* hashes)
+void keccak64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1137,7 +1084,8 @@ __kernel void search9(__global hash_t* hashes)
   s5 = bitselect(s5^s7,s5,s6); s6 = bitselect(s6^s8,s6,s7); s7 = bitselect(s7^s9,s7,s8);
 
   s0 ^= KECCAKF_1600_RNDC_23;
-
+if (update)
+{
   hash->h8[0] = as_ulong(s0);
   hash->h8[1] = as_ulong(s1);
   hash->h8[2] = as_ulong(s2);
@@ -1146,13 +1094,13 @@ __kernel void search9(__global hash_t* hashes)
   hash->h8[5] = as_ulong(s5);
   hash->h8[6] = as_ulong(s6);
   hash->h8[7] = as_ulong(s7);
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // keccak80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search10(__global ulong* block, __global hash_t* hashes)
+__kernel void search5(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1204,8 +1152,7 @@ __kernel void search10(__global ulong* block, __global hash_t* hashes)
 
 
 // skein64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search11(__global hash_t* hashes)
+void skein64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1229,7 +1176,8 @@ __kernel void search11(__global hash_t* hashes)
   m0 = m1 = m2 = m3 = m4 = m5 = m6 = m7 = 0;
 
   UBI_BIG(510, 8);
-
+if (update)
+{
   hash->h8[0] = h0;
   hash->h8[1] = h1;
   hash->h8[2] = h2;
@@ -1238,13 +1186,13 @@ __kernel void search11(__global hash_t* hashes)
   hash->h8[5] = h5;
   hash->h8[6] = h6;
   hash->h8[7] = h7;
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // skein80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search12(__global ulong* block, __global hash_t* hashes)
+__kernel void search6(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1290,8 +1238,7 @@ __kernel void search12(__global ulong* block, __global hash_t* hashes)
 }
 
 // luffa64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search13(__global hash_t* hashes)
+void luffa64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1346,7 +1293,8 @@ __kernel void search13(__global hash_t* hashes)
       hash->h4[7] = ENC32E(V07 ^ V17 ^ V27 ^ V37 ^ V47);
     }
   }
-
+if (update)
+{
   hash->h4[8] =  ENC32E(V00 ^ V10 ^ V20 ^ V30 ^ V40);
   hash->h4[9] =  ENC32E(V01 ^ V11 ^ V21 ^ V31 ^ V41);
   hash->h4[10] = ENC32E(V02 ^ V12 ^ V22 ^ V32 ^ V42);
@@ -1355,13 +1303,13 @@ __kernel void search13(__global hash_t* hashes)
   hash->h4[13] = ENC32E(V05 ^ V15 ^ V25 ^ V35 ^ V45);
   hash->h4[14] = ENC32E(V06 ^ V16 ^ V26 ^ V36 ^ V46);
   hash->h4[15] = ENC32E(V07 ^ V17 ^ V27 ^ V37 ^ V47);
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // luffa80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search14(__global uint* block, __global hash_t* hashes)
+__kernel void search7(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1432,8 +1380,9 @@ __kernel void search14(__global uint* block, __global hash_t* hashes)
 }
 
 // cubehash64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search15(__global hash_t* hashes)
+void cubehash64(__global hash_t* hashes, bool update)
+//__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+//__kernel void search15(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1474,7 +1423,8 @@ __kernel void search15(__global hash_t* hashes)
     else if (i == 2)
       xv ^= SPH_C32(1);
   }
-
+if (update)
+{
   hash->h4[0] = x0;
   hash->h4[1] = x1;
   hash->h4[2] = x2;
@@ -1491,13 +1441,13 @@ __kernel void search15(__global hash_t* hashes)
   hash->h4[13] = xd;
   hash->h4[14] = xe;
   hash->h4[15] = xf;
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // cubehash80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search16(__global uint* block, __global hash_t* hashes)
+__kernel void search8(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1564,74 +1514,9 @@ __kernel void search16(__global uint* block, __global hash_t* hashes)
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
-// cubehash64
-void cubehash64(__global hash_t* hashes)
-{
-  uint gid = get_global_id(0);
-  __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
-
-  // cubehash.h1
-
-  sph_u32 x0 = SPH_C32(0x2AEA2A61), x1 = SPH_C32(0x50F494D4), x2 = SPH_C32(0x2D538B8B), x3 = SPH_C32(0x4167D83E);
-  sph_u32 x4 = SPH_C32(0x3FEE2313), x5 = SPH_C32(0xC701CF8C), x6 = SPH_C32(0xCC39968E), x7 = SPH_C32(0x50AC5695);
-  sph_u32 x8 = SPH_C32(0x4D42C787), x9 = SPH_C32(0xA647A8B3), xa = SPH_C32(0x97CF0BEF), xb = SPH_C32(0x825B4537);
-  sph_u32 xc = SPH_C32(0xEEF864D2), xd = SPH_C32(0xF22090C4), xe = SPH_C32(0xD0E5CD33), xf = SPH_C32(0xA23911AE);
-  sph_u32 xg = SPH_C32(0xFCD398D9), xh = SPH_C32(0x148FE485), xi = SPH_C32(0x1B017BEF), xj = SPH_C32(0xB6444532);
-  sph_u32 xk = SPH_C32(0x6A536159), xl = SPH_C32(0x2FF5781C), xm = SPH_C32(0x91FA7934), xn = SPH_C32(0x0DBADEA9);
-  sph_u32 xo = SPH_C32(0xD65C8A2B), xp = SPH_C32(0xA5A70E75), xq = SPH_C32(0xB1C62456), xr = SPH_C32(0xBC796576);
-  sph_u32 xs = SPH_C32(0x1921C8F7), xt = SPH_C32(0xE7989AF1), xu = SPH_C32(0x7795D246), xv = SPH_C32(0xD43E3B44);
-
-  x0 ^= hash->h4[0];
-  x1 ^= hash->h4[1];
-  x2 ^= hash->h4[2];
-  x3 ^= hash->h4[3];
-  x4 ^= hash->h4[4];
-  x5 ^= hash->h4[5];
-  x6 ^= hash->h4[6];
-  x7 ^= hash->h4[7];
-
-  for (int i = 0; i < 13; i ++)
-  {
-    SIXTEEN_ROUNDS;
-
-    if (i == 0)
-    {
-      x0 ^= hash->h4[8];
-      x1 ^= hash->h4[9];
-      x2 ^= hash->h4[10];
-      x3 ^= hash->h4[11];
-      x4 ^= hash->h4[12];
-      x5 ^= hash->h4[13];
-      x6 ^= hash->h4[14];
-      x7 ^= hash->h4[15];
-    }
-    else if(i == 1)
-      x0 ^= 0x80;
-    else if (i == 2)
-      xv ^= SPH_C32(1);
-  }
-  hash->h4[0] = x0;
-  hash->h4[1] = x1;
-  hash->h4[2] = x2;
-  hash->h4[3] = x3;
-  hash->h4[4] = x4;
-  hash->h4[5] = x5;
-  hash->h4[6] = x6;
-  hash->h4[7] = x7;
-  hash->h4[8] = x8;
-  hash->h4[9] = x9;
-  hash->h4[10] = xa;
-  hash->h4[11] = xb;
-  hash->h4[12] = xc;
-  hash->h4[13] = xd;
-  hash->h4[14] = xe;
-  hash->h4[15] = xf;
-  barrier(CLK_GLOBAL_MEM_FENCE);
-}
-
 // shavite64
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search17(__global hash_t* hashes)
+__kernel void search20(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1710,7 +1595,7 @@ __kernel void search17(__global hash_t* hashes)
 
 // shavite80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search18(__global uint* block, __global hash_t* hashes)
+__kernel void search9(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1791,8 +1676,7 @@ __kernel void search18(__global uint* block, __global hash_t* hashes)
 }
 
 // simd64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search19(__global hash_t* hashes)
+void simd64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -1899,7 +1783,8 @@ __kernel void search19(__global hash_t* hashes)
     COPY_D0, COPY_D1, COPY_D2, COPY_D3,
     COPY_D4, COPY_D5, COPY_D6, COPY_D7,
     IF, 25,  4, PP8_0_);
-
+if (update)
+{
   hash->h4[0] = A0;
   hash->h4[1] = A1;
   hash->h4[2] = A2;
@@ -1916,13 +1801,13 @@ __kernel void search19(__global hash_t* hashes)
   hash->h4[13] = B5;
   hash->h4[14] = B6;
   hash->h4[15] = B7;
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // simd80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search20(__global uint* block, __global hash_t* hashes)
+__kernel void search10(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -2117,7 +2002,7 @@ __kernel void search21(__global hash_t* hashes)
 
 // echo80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search22(__global ulong* block, __global hash_t* hashes)
+__kernel void search11(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2174,7 +2059,7 @@ __kernel void search22(__global ulong* block, __global hash_t* hashes)
 
 // hamsi64
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search23(__global hash_t* hashes)
+__kernel void search22(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -2252,7 +2137,7 @@ __kernel void search23(__global hash_t* hashes)
 
 // hamsi80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search24(__global ulong* block, __global hash_t* hashes)
+__kernel void search12(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -2336,7 +2221,7 @@ __kernel void search24(__global ulong* block, __global hash_t* hashes)
 
 // fugue64
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search25(__global hash_t* hashes)
+__kernel void search23(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2438,7 +2323,7 @@ __kernel void search25(__global hash_t* hashes)
 
 // fugue80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search26(__global uint* block, __global hash_t* hashes)
+__kernel void search13(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -2542,8 +2427,7 @@ __kernel void search26(__global uint* block, __global hash_t* hashes)
 }
 
 // shabal64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search27(__global hash_t* hashes)
+void shabal64(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2595,7 +2479,8 @@ __kernel void search27(__global hash_t* hashes)
     XOR_W;
     APPLY_P;
   }
-
+if (update)
+{
   hash->h4[0] = B0;
   hash->h4[1] = B1;
   hash->h4[2] = B2;
@@ -2612,13 +2497,13 @@ __kernel void search27(__global hash_t* hashes)
   hash->h4[13] = BD;
   hash->h4[14] = BE;
   hash->h4[15] = BF;
-
+}
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // shabal80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search28(__global uint* block, __global hash_t* hashes)
+__kernel void search14(__global uint* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);
@@ -2695,7 +2580,7 @@ __kernel void search28(__global uint* block, __global hash_t* hashes)
 
 // whirlpool64
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search29(__global hash_t* hashes)
+__kernel void search24(__global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2802,7 +2687,7 @@ __kernel void search29(__global hash_t* hashes)
 
 // whirlpool80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search30(__global ulong* block, __global hash_t* hashes)
+__kernel void search15(__global ulong* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2909,8 +2794,7 @@ __kernel void search30(__global ulong* block, __global hash_t* hashes)
 }
 
 // sha512_64
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search31(__global hash_t* hashes)
+void sha51264(__global hash_t* hashes, bool update)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2937,16 +2821,16 @@ __kernel void search31(__global hash_t* hashes)
 
   SHA512Block(W, SHA512Out);
 
+if (update)
   #pragma unroll
   for (int i = 0; i < 8; i++)
     hash->h8[i] = ENC64E(SHA512Out[i]);
-
   barrier(CLK_GLOBAL_MEM_FENCE);
 }
 
 // sha512_80
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search32(__global unsigned char* block, __global hash_t* hashes)
+__kernel void search16(__global unsigned char* block, __global hash_t* hashes)
 {
   uint gid = get_global_id(0);
   uint offset = get_global_offset(0);
@@ -2983,43 +2867,6 @@ __kernel void search32(__global unsigned char* block, __global hash_t* hashes)
 }
 
 __attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search34(__global hash_t* hashes)
-{
-        uint gid = get_global_id(0);
-        __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);        
-        hash->h1[64] = hash->h1[0] % X16R_HASH_FUNC_COUNT;
-        blake64(hashes, hash->h1[64] == X16R_BLAKE);
-        //bmw64(hashes, hash->h1[64] == X16R_BMW);
-        //groestl64(hashes, hash->h1[64] == X16R_GROESTL);
-        //jh64(hashes, hash->h1[64] == X16R_JH);
-        //keccak64 (hashes, hash->h1[64] == X16R_KECCAK);
-        //skein64 (hashes, hash->h1[64] == X16R_SKEIN);
-        //luffa64 (hashes, hash->h1[64] == X16R_LUFFA);
-
-        //whirlpool64(hashes, hash->h1[64] == X16R_WHIRLPOOL);
-        //sha51264 (hashes, hash->h1[64] == X16R_SHA512); 
-}
-
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
-__kernel void search35(__global hash_t* hashes)
-{
-        uint gid = get_global_id(0);
-        __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);        
-
-        // cubehash64 (hashes, hash->h1[64] == X16R_CUBEHASH);
-        cubehash64 (hash->h1[64] == X16R_CUBEHASH);  // Trying to avoid error
-        //shavite64 (hashes, hash->h1[64] == X16R_SHAVITE);
-        //simd64 (hashes, hash->h1[64] == X16R_SIMD);
-//      //echo64 (hashes, hash->h1[64] == X16R_ECHO);
-//      //hamsi64 (hashes, hash->h1[64] == X16R_HAMSI);
-
-        //fugue64 (hashes, hash->h1[64] == X16R_FUGUE);   
-        //shabal64 (hashes, hash->h1[64] == X16R_SHABAL);
-
-}
-
-
-__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
 __kernel void search(__global hash_t* hashes, __global uint* output, const ulong target)
 {
   uint gid = get_global_id(0);
@@ -3032,6 +2879,42 @@ __kernel void search(__global hash_t* hashes, __global uint* output, const ulong
     if (i < 0xFF)
       output[i] = SWAP4(gid);
   }
+}
+
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search17(__global hash_t* hashes)
+{
+        uint gid = get_global_id(0);
+        __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);        
+        hash->h1[64] = hash->h1[0] % X16R_HASH_FUNC_COUNT;
+        blake64(hashes, hash->h1[64] == X16R_BLAKE);
+        bmw64(hashes, hash->h1[64] == X16R_BMW);
+        //groestl64(hashes, hash->h1[64] == X16R_GROESTL);
+        jh64(hashes, hash->h1[64] == X16R_JH);
+        keccak64 (hashes, hash->h1[64] == X16R_KECCAK);
+        skein64 (hashes, hash->h1[64] == X16R_SKEIN);
+        luffa64 (hashes, hash->h1[64] == X16R_LUFFA);
+
+        //whirlpool64(hashes, hash->h1[64] == X16R_WHIRLPOOL);
+        //sha51264 (hashes, hash->h1[64] == X16R_SHA512); 
+}
+
+__attribute__((reqd_work_group_size(WORKSIZE, 1, 1)))
+__kernel void search18(__global hash_t* hashes)
+{
+        uint gid = get_global_id(0);
+        __global hash_t *hash = &(hashes[gid-get_global_offset(0)]);        
+
+        cubehash64 (hashes, hash->h1[64] == X16R_CUBEHASH);
+        //shavite64 (hashes, hash->h1[64] == X16R_SHAVITE);
+        simd64 (hashes, hash->h1[64] == X16R_SIMD);
+        //echo64 (hashes, hash->h1[64] == X16R_ECHO);
+        //hamsi64 (hashes, hash->h1[64] == X16R_HAMSI);
+
+        //fugue64 (hashes, hash->h1[64] == X16R_FUGUE);   
+        shabal64 (hashes, hash->h1[64] == X16R_SHABAL);
+
 }
 
 #endif // X16_CL
