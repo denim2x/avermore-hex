@@ -1,6 +1,6 @@
-# Avermore miner for HEX 
+# Avermore miner for XDNA HEX Algo.
 
-This miner is not functional yet and is an attemt to merge the new hex algo of XDNA into Avermore.
+This miner is NOT functional yet and is an attemt to merge the new hex algo of XDNA into Avermore.
 
 The working miner for Hex ( But slow ) can be found at : https://github.com/XDNA-Core/sgminer-hex
 
@@ -8,6 +8,12 @@ A description of the changes can be found on the original code derived from Yiim
 
 - RVN : https://github.com/XDNA-Core/Yiimp-HEX/blob/master/stratum/algos/x16r.c 
 - XDNA Hex : https://github.com/XDNA-Core/Yiimp-HEX/blob/master/stratum/algos/hex.c
+
+Please not: The X16R part of this miner is abused... all changes done into the X16R algo.
+
+You can run the miner based on this example (And see what is going wrong):
+
+./sgminer -k x16r -o stratum+tcp://mine.nlpool.nl:5035 -u <Yourwallet> -p c=XDNA -I 19 -v
 
 ## Original Introduction 
 
@@ -492,3 +498,4 @@ For example (this is wrapped, but it's all on one line for real):
     000000004a4366808f81d44f26df3d69d7dc4b3473385930462d9ab707b50498
     f681634a4f1f63d01a0cd43fb338000000000080000000000000000000000000
     0000000000000000000000000000000000000000000000000000000080020000
+
