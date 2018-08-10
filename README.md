@@ -9,7 +9,7 @@ A description of the changes can be found on the original code derived from Yiim
 - RVN : https://github.com/XDNA-Core/Yiimp-HEX/blob/master/stratum/algos/x16r.c 
 - XDNA Hex : https://github.com/XDNA-Core/Yiimp-HEX/blob/master/stratum/algos/hex.c
 
-Please not: The X16R part of this miner is abused... all changes done into the X16R algo.
+Please note: The X16R part of this miner is used... all changes done into the X16R algo.
 
 You can run the miner based on this example (And see what is going wrong):
 
